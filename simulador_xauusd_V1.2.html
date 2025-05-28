@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador XAUUSD - FRF</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: #000;
+      background: #f0f0f0;
+      overflow-x: hidden;
+    }
+
+    /* EFEITO MATRIX */
+    #matrix {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #ffffff;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* CONTAINER DO SIMULADOR */
+    .container {
+      position: relative;
+      z-index: 2;
+      padding: 40px 20px;
+      max-width: 900px;
+      margin: 120px auto 40px auto;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    input[type=number], select {
+      width: 120px;
+      margin: 5px;
+    }
+
+    .ordem {
+      margin-bottom: 10px;
+    }
+
+    .bloco {
+      margin-top: 20px;
+    }
+
+    /* TÍTULO E LOGO LADO A LADO */
+    .titulo-logo {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .titulo-logo img {
+      width: 100px;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      animation: pulse 2.5s infinite;
+    }
+
+    /* ANIMAÇÃO DO LOGO */
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <!-- FUNDO MATRIX -->
+  <div id="matrix"><canvas id="matrixCanvas"></canvas></div>
+
+  <!-- CONTEÚDO -->
+  <div class="container">
+    <div class="titulo-logo">
+      <h2>Simulador XAUUSD - Preço Alvo e Lucro Atual</h2>
+      <img src="logo-frf.png" alt="Logo FRF">
+    </div>
+
+    <label>Tipo de Operação:
+      <select id="tipoOperacao">
+        <option value="buy">Buy (Compra)</option>
+        <option value="sell">Sell (Venda)</option>
+      </select>
+    </label><br>
+
+    <label>Número de Ordens: <input type="number" id="numOrdens" value="1" min="1"></label>
+    <button onclick="gerarOrdens()">Gerar Ordens</button>
+
+    <div id="formularioOrdens"></div>
+
+    <div class="bloco">
+      <label>Lucro Desejado (US$): <input type="number" id="lucroDesejado" value="1000"></label><br>
+      <label>Spread (em pontos): <input type="number" id="spreadPontos" value="16" step="0.1" min="0"></label><br>
+      <button onclick="calcularPrecoSaida()">Calcular Preço de Saída</button>
+      <h3 id="resultadoSaida"></h3>
+    </div>
+
+    <div class="bloco">
+      <label>Preço Atual XAUUSD: <input type="number" id="precoAtual" step="0.01"></label>
+      <button onclick="calcularLucroAtual()">Calcular Lucro/Prejuízo Atual</button>
+      <h3 id="resultadoLucro"></h3>
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    function gerarOrdens() {
+      const container = document.getElementById("formularioOrdens");
+      container.innerHTML = "";
+      const num = parseInt(document.getElementById("numOrdens").value);
+
+      for (let i = 0; i < num; i++) {
+        const div = document.createElement("div");
+        div.className = "ordem";
+        div.innerHTML = `
+          <strong>Ordem ${i + 1}</strong> - 
+          Preço Entrada: <input type="number" step="0.01" id="preco${i}"> 
+          Lote: <input type="number" step="0.01" id="lote${i}">
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    function calcularPrecoSaida() {
+      const tipo = document.getElementById("tipoOperacao").value;
+      const num = parseInt(document.getElementById("numOrdens").value);
+      const spreadPontos = parseFloat(document.getElementById("spreadPontos").value);
+      const spread = spreadPontos * 0.01;
+      const lucroDesejado = parseFloat(document.getElementById("lucroDesejado").value);
+
+      let somaLotes = 0;
+      let somaPrecoLote = 0;
+
+      for (let i = 0; i < num; i++) {
+        const preco = parseFloat(document.getElementById("preco" + i).value);
+        const lote = parseFloat(document.getElementById("lote" + i).value);
+        if (isNaN(preco) || isNaN(lote)) {
+          alert("Preencha todos os campos corretamente.");
+          return;
+        }
+        somaLotes += lote;
+        somaPrecoLote += preco * lote;
+      }
+
+      if (somaLotes === 0 || isNaN(lucroDesejado)) {
+        alert("Verifique os valores preenchidos.");
+        return;
+      }
+
+      const precoMedio = somaPrecoLote / somaLotes;
+      const ajusteLucro = lucroDesejado / (somaLotes * 100);
+
+      let precoSaida = 0;
+      if (tipo === "buy") {
+        precoSaida = precoMedio + ajusteLucro + spread;
+      } else {
+        precoSaida = precoMedio - ajusteLucro - spread;
+      }
+
+      document.getElementById("resultadoSaida").innerHTML = `
+        Preço médio: <strong>${precoMedio.toFixed(2)}</strong><br>
+        Spread aplicado: <strong>${spread.toFixed(2)}</strong><br>
+        Preço de saída para lucro de US$ ${lucroDesejado.toFixed(2)}: 
+        <strong>${precoSaida.toFixed(2)}</strong>
+      `;
+    }
+
+    function calcularLucroAtual() {
+      const tipo = document.getElementById("tipoOperacao").value;
+      const precoAtual = parseFloat(document.getElementById("precoAtual").value);
+      const num = parseInt(document.getElementById("numOrdens").value);
+
+      if (isNaN(precoAtual)) {
+        alert("Informe o preço atual do XAUUSD.");
+        return;
+      }
+
+      let lucroTotal = 0;
+
+      for (let i = 0; i < num; i++) {
+        const precoEntrada = parseFloat(document.getElementById("preco" + i).value);
+        const lote = parseFloat(document.getElementById("lote" + i).value);
+        if (isNaN(precoEntrada) || isNaN(lote)) {
+          alert("Preencha todos os campos corretamente.");
+          return;
+        }
+
+        let lucro = 0;
+        if (tipo === "buy") {
+          lucro = (precoAtual - precoEntrada) * lote * 100;
+        } else {
+          lucro = (precoEntrada - precoAtual) * lote * 100;
+        }
+
+        lucroTotal += lucro;
+      }
+
+      document.getElementById("resultadoLucro").innerHTML = `
+        Lucro/Prejuízo atual: <strong>US$ ${lucroTotal.toFixed(2)}</strong>
+      `;
+    }
+
+    // MATRIX BACKGROUND
+    const canvas = document.getElementById("matrixCanvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const fontSize = 16;
+    const columns = canvas.width / fontSize;
+    const drops = [];
+
+    for (let x = 0; x < columns; x++) drops[x] = 1;
+
+    function drawMatrix() {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#0a0";
+      ctx.font = fontSize + "px monospace";
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+
+    setInterval(drawMatrix, 50);
+  </script>
+</body>
+</html>
